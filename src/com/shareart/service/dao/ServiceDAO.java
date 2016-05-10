@@ -19,6 +19,7 @@ public class ServiceDAO {
 	private static final String QUERY_ALL_COUNTRY = "SELECT ISO_COUNTRY_CODE, country.COUNTRY_CODE, COUNTRY_NAME, STATE_NAME, STATE_CODE, STATE_NAME FROM country, state where state.COUNTRY_CODE = country.COUNTRY_CODE;";
 	
 	private static final String QUERY_ALL_CATEGORY = "SELECT * FROM category";
+	public static int SUCCESS= 1;
 	public static int APP_ERROR = 10;
 	private JDBCClient jdbcClient;
 

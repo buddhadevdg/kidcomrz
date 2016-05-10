@@ -31,6 +31,8 @@ public class Article implements Serializable {
 	private List<Document> documents;
 	
 	private Category category;
+	
+	private User purchasedUser;
 
 	public Integer getArticleOid() {
 		return articleOid;
@@ -133,5 +135,13 @@ public class Article implements Serializable {
 			this.documents = new ArrayList<>();
 		}
 		this.documents.addAll(docs);
+	}
+
+	public User getPurchasedUser() {
+		return purchasedUser;
+	}
+
+	public void setPurchasedUser(User purchasedUser) {
+		this.purchasedUser = purchasedUser;
 	}
 }

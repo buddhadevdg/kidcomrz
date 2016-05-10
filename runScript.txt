@@ -1,0 +1,46 @@
+java -classpath "/home/ec2-user/kidscomrz/app/lib/*" com.shareart.service.ServiceRouter
+
+
+nohup /home/ec2-user/kidscomrz/app/java_installer/jdk-8u65-linux-x64/bin/java -classpath "/home/ec2-user/kidscomrz/app/lib/*" com.shareart.service.ServiceRouter &
+
+pkill -f com.shareart.service.ServiceRouter
+
+
+sudo yum install /home/ec2-user/kidscomrz/app/java_installer/jdk-8u65-linux-x64.rpm
+
+
+http://52.11.102.161:8092/service/country/all
+
+http://52.27.173.80:8092/service/country/all
+
+
+http://52.27.173.80:8092/service/user/login
+
+{
+    "userId": "bd",
+    "password": "bd"    
+}
+
+UPDATE document SET doc_url= REPLACE (doc_url, '52.11.102.161', '52.27.173.80');
+
+mysql -h localhost -u root -p
+
+password
+
+mysqldump -u root -p shareart > shareartDB.sql
+
+ip-10-0-0-2
+
+http://52.11.102.161:8092/service/user/activate/bd
+
+
+buddhadev.project@gmail.com/project@123
+
+buddhadev.project@yahoo.com/project@123
+
+
+ ses-smtp-user.kidscomrz
+SMTP Username:
+AKIAJ5LE67UWGN4DQVZA
+SMTP Password:
+Aox3vwvhIZgRUIEx9TX+PlD3dPn7F4IpM+kBgk6ancPl

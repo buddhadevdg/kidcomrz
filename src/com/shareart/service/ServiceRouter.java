@@ -26,6 +26,7 @@ import com.shareart.service.response.CategoryResponseHandler;
 import com.shareart.service.response.CountryStateResponseHandler;
 import com.shareart.service.response.UserResponseHandler;
 import com.shareart.service.util.EmailHelper;
+import com.shareart.service.util.FileHelper;
 import com.shareart.vertx.ext.CustBodyHandlerImpl;
 
 import io.vertx.core.AbstractVerticle;
@@ -73,25 +74,37 @@ public class ServiceRouter extends AbstractVerticle {
 		router.post("/service/user/add").handler(this::handleAddUser);
 		router.post("/service/user/child/add").handler(this::handleAddChild);
 		router.post("/service/user/login").handler(this::handleLoginUser);
-		router.get("/service/user/activate/:userOid").handler(this::activateUser);
+		// activation is a get request as it wil be from a li nk from activation mail
+		router.get("/service/user/activate/:userOid").handler(this::handleActivateUser);
+		router.put("/service/user/update/:userOid").handler(this::handleUpdateUser);
+		router.put("/service/user/deactivate/:userOid").handler(this::handleDeactivateUser);
+		// delete user is a put as it update the user status with 4 (deleted) and not actual delete operation
+ 		router.put("/service/user/delete/:userOid").handler(this::handleDeleteUser);
 		
 		//router.get("/service/state/get/:countryCode").handler(this::getStatesByCountry);
 		router.get("/service/country/all").handler(this::getAllCountry);
 		
-		
 		router.post("/service/article/add").handler(this::handleAddArticle);
 		router.post("/service/article/document/add").handler(this::handleAddDocument);
+		router.delete("/service/article/document/delete/:docOId").handler(this::handleDelteDocument);
+		router.put("/service/article/document/default/:docOId").handler(this::handleMarkDocumentAsDefault);
 		router.put("/service/article/done/:articleOid").handler(this::handleArticleCommit);
 		router.get("/service/article/fetch/user/:userOid").handler(this::handleArticleFetchByUser);
 		router.get("/service/article/fetch/:articleOid").handler(this::handleArticleFetch);
+		router.get("/service/article/fetch/purchased/:userOid").handler(this::handleArticleFetchPurchasedByUser);
+		router.get("/service/article/fetch/category/:categoryOid/:userOId").handler(this::handleArticleFetchByCategory);
 		router.get("/service/article/document/fetch/:articleOid").handler(this::handleArticleDocumentFetch);
+		router.put("/service/article/update/:articleOid").handler(this::handleUpdateArticle);
+		router.put("/service/article/purchase/:articleOid/:userOid").handler(this::handleArticlePurchase);
+		router.put("/service/article/cancel/:articleOid").handler(this::handleCancelPurchase);
+		router.put("/service/article/state/available/:articleOid").handler(this::handleMarkArticleAvailable);
+		router.put("/service/article/state/sold/:articleOid").handler(this::handleMarkArticleSold);
+		router.delete("/service/article/delete/:articleOid").handler(this::handleDeleteArticle);
 		
 		router.get("/service/category/all").handler(this::getAllCategory);
 		
-		router.get("/service/img/*").handler(this::getImage);
-		
-		//router.get("/service/*").handler(this::getImage);
-		
+		router.get("/service/img/*").handler(this::getImage);		
+		//router.get("/service/*").handler(this::getImage);		
 		
 		vertx.createHttpServer().requestHandler(router::accept).listen(Integer.valueOf(prop.getProperty("service.port")));
 
@@ -102,8 +115,21 @@ public class ServiceRouter extends AbstractVerticle {
 		JsonObject userData = routingContext.getBodyAsJson();
 		User user = gson.fromJson(userData.encode(), User.class);
 		UserResponseHandler userRespHandler = new UserResponseHandler(routingContext.response(),prop.getProperty("base.url"));
-		System.out.println(user.getChildrens());
 		userDao.addUser(user,userRespHandler);
+	}
+	
+	public void handleUpdateUser(RoutingContext routingContext){
+		JsonObject userData = routingContext.getBodyAsJson();
+		User user = gson.fromJson(userData.encode(), User.class);
+		UserResponseHandler userRespHandler = new UserResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		int userOid;
+		try {
+			userOid = Integer.valueOf(routingContext.request().getParam("userOid"));
+			userDao.updateUser(user,userOid,userRespHandler);
+		} catch (NumberFormatException e) {
+			e.printStackTrace();
+			userRespHandler.activationError();
+		}		
 	}
 
 	public void handleAddChild(RoutingContext routingContext){
@@ -120,7 +146,7 @@ public class ServiceRouter extends AbstractVerticle {
 		userDao.login(user.getUserId(), user.getPassword(),userRespHandler);
 	}
 	
-	public void activateUser(RoutingContext routingContext){
+	public void handleActivateUser(RoutingContext routingContext){
 		UserResponseHandler userRespHandler = new UserResponseHandler(routingContext.response(), prop.getProperty("base.url"));
 		int userOid;
 		try {
@@ -129,6 +155,30 @@ public class ServiceRouter extends AbstractVerticle {
 		} catch (NumberFormatException e) {
 			e.printStackTrace();
 			userRespHandler.activationError();
+		}
+	}
+	
+	public void handleDeactivateUser(RoutingContext routingContext){
+		UserResponseHandler userRespHandler = new UserResponseHandler(routingContext.response(), prop.getProperty("base.url"));
+		int userOid;
+		try {
+			userOid = Integer.valueOf(routingContext.request().getParam("userOid"));
+			userDao.deacitvateUser(userOid, userRespHandler);
+		} catch (NumberFormatException e) {
+			e.printStackTrace();
+			userRespHandler.sendError(e.getMessage());;
+		}
+	}
+	
+	public void handleDeleteUser(RoutingContext routingContext){
+		UserResponseHandler userRespHandler = new UserResponseHandler(routingContext.response(), prop.getProperty("base.url"));
+		int userOid;
+		try {
+			userOid = Integer.valueOf(routingContext.request().getParam("userOid"));
+			userDao.deleteUser(userOid, userRespHandler);
+		} catch (NumberFormatException e) {
+			e.printStackTrace();
+			userRespHandler.sendError(e.getMessage());;
 		}
 	}
 	
@@ -185,13 +235,45 @@ public class ServiceRouter extends AbstractVerticle {
 			log.info("file name :: "+file.fileName());
 			log.info("uploadedFileName :: "+file.uploadedFileName());
 			log.info("File.separator :: "+File.separator);
-			document.setDocUrl(prop.getProperty("base.url")+"img/"+file.uploadedFileName().substring(file.uploadedFileName().lastIndexOf(File.separator)+1));
+			document.setDocUrl("img/"+file.uploadedFileName().substring(file.uploadedFileName().lastIndexOf(File.separator)+1));
 			log.info("DocUrl ::"+document.getDocUrl());
 			document.setPhysicalPath(file.uploadedFileName());
 		}
 		
 		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
 		articleDao.addDocument(document,articleRespHandler);
+	}
+	
+	public void handleUpdateArticle(RoutingContext routingContext){
+		JsonObject articleData = routingContext.getBodyAsJson();
+		Article article = gson.fromJson(articleData.encode(), Article.class);
+		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.updateArticle(article, articleOid, articleRespHandler);
+	}
+	
+	public void handleDelteDocument(RoutingContext routingContext){
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(), prop.getProperty("base.url"));
+		int docOid;
+		try {
+			docOid = Integer.valueOf(routingContext.request().getParam("docOid"));
+			articleDao.deleteDocument(docOid, articleRespHandler);
+		} catch (NumberFormatException e) {
+			e.printStackTrace();
+			articleRespHandler.sendError(e.getMessage());;
+		}
+	}
+	
+	public void handleMarkDocumentAsDefault(RoutingContext routingContext){
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(), prop.getProperty("base.url"));
+		int docOid;
+		try {
+			docOid = Integer.valueOf(routingContext.request().getParam("docOid"));
+			articleDao.markDocAsDefault(docOid, articleRespHandler);
+		} catch (NumberFormatException e) {
+			e.printStackTrace();
+			articleRespHandler.sendError(e.getMessage());;
+		}
 	}
 	
 	public void handleArticleCommit(RoutingContext routingContext){
@@ -212,10 +294,54 @@ public class ServiceRouter extends AbstractVerticle {
 		articleDao.fetchArticleByUser(userOid, articleRespHandler);
 	}
 	
+	public void handleArticleFetchPurchasedByUser(RoutingContext routingContext){
+		int userOid = Integer.valueOf(routingContext.request().getParam("userOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.fetchArticlePurchasedByUser(userOid, articleRespHandler);
+	}
+	
+	public void handleArticleFetchByCategory(RoutingContext routingContext){
+		int userOid = Integer.valueOf(routingContext.request().getParam("userOid"));
+		int categoryOid = Integer.valueOf(routingContext.request().getParam("categoryOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.fetchArticleByZipCodeCategory(userOid,categoryOid, articleRespHandler);
+	}
+	
 	public void handleArticleDocumentFetch(RoutingContext routingContext){
 		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
 		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
 		articleDao.fetchArticleDocument(articleOid, articleRespHandler);
+	}
+	
+	public void handleArticlePurchase(RoutingContext routingContext){
+		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
+		int purchaseUserOid = Integer.valueOf(routingContext.request().getParam("userOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.purchaseArticle(articleOid,purchaseUserOid, articleRespHandler);
+	}
+	
+	public void handleCancelPurchase(RoutingContext routingContext){
+		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.cancelPurchase(articleOid,articleRespHandler);
+	}
+	
+	public void handleMarkArticleAvailable(RoutingContext routingContext){
+		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.markArticleAvailable(articleOid,articleRespHandler);
+	}
+	
+	public void handleMarkArticleSold(RoutingContext routingContext){
+		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.markArticleSold(articleOid,articleRespHandler);
+	}
+	
+	public void handleDeleteArticle(RoutingContext routingContext){
+		int articleOid = Integer.valueOf(routingContext.request().getParam("articleOid"));
+		ArticleResponseHandler articleRespHandler = new ArticleResponseHandler(routingContext.response(),prop.getProperty("base.url"));
+		articleDao.deleteArticle(articleOid,articleRespHandler);
 	}
 	
 	public void getAllCategory(RoutingContext routingContext){
@@ -262,6 +388,7 @@ public class ServiceRouter extends AbstractVerticle {
 		log.info("datasource created ...");
 		
 		EmailHelper.init(vertx);
+		FileHelper.init(vertx);
 	}
 
 	/**
